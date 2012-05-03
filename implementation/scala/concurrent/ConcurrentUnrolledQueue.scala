@@ -18,14 +18,15 @@ class ConcurrentUnrolledQueue[A] {
         while (i < Node.NODE_SIZE && t.get(i) != null) {
           i += 1
         }
-        if (i != Node.NODE_SIZE_MIN_ONE) {
+        if (i < Node.NODE_SIZE) {
           if (t.atomicElements.compareAndSet(i, null, elem)) {
             return
           }
-        } else {
+        } else { // if (i == Node.NODE_SIZE)
           val n_ = new Node[A]
           n_.set(0, elem)
           if (t.atomicNext.compareAndSet(null, n_)) {
+            atomicTail.compareAndSet(t, n_)
             return
           }
         }
@@ -63,7 +64,7 @@ class ConcurrentUnrolledQueue[A] {
             nh.set(Node.NODE_SIZE_MIN_ONE, DELETED)
             return v.asInstanceOf[A]
           }
-        } else {
+        } else { // if (i == Node.NODE_SIZE)
           // All the elements of this node have been deleted : node has been deleted.
         }
       }
@@ -83,6 +84,14 @@ class ConcurrentUnrolledQueue[A] {
   val atomicHead = new AtomicReference(new Node[A])
 
   val atomicTail = new AtomicReference(head())
+
+  {
+    var i = 0
+    while (i < Node.NODE_SIZE) {
+      head.set(i, DELETED)
+      i += 1
+    }
+  }
 
   class Node[A] () {
     import Node._

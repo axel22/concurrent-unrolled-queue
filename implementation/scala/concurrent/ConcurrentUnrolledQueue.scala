@@ -49,7 +49,7 @@ class ConcurrentUnrolledQueue[A] {
         }
         atomicTail.compareAndSet(t, nh) // Tail is falling behind.  Try to advance it
       } else {
-        var i = 0
+        var i = nh.deleteHint.get
         var v : Any = null
 
         while (i < Node.NODE_SIZE && {v = nh.get(i); v == DELETED}) {
@@ -58,6 +58,7 @@ class ConcurrentUnrolledQueue[A] {
 
         if (i < Node.NODE_SIZE_MIN_ONE) {
           if (nh.atomicElements.compareAndSet(i, v, DELETED)) {
+            nh.deleteHint.set(i)
             return v.asInstanceOf[A]
           }
         } else if (i == Node.NODE_SIZE_MIN_ONE) { // if the element being removed is the last element of the node...
@@ -130,6 +131,8 @@ class ConcurrentUnrolledQueue[A] {
     var atomicNext = new AtomicReference[Node[A]]
 
     var addHint = new AtomicInteger(0)
+
+    var deleteHint = new AtomicInteger(0)
   }
 
   object Node {

@@ -14,14 +14,14 @@ class ConcurrentUnrolledQueue[A] {
       val t = tail()
       val n = t.next()
       if (n == null) {
-        var i = t.addHint.get()
+        var i = t.addHint
         while (i < Node.NODE_SIZE && t.get(i) != null) {
           i += 1
         }
 
         if (i < Node.NODE_SIZE) {
           if (t.atomicElements.compareAndSet(i, null, elem)) {
-            t.addHint.set(i)
+            t.addHint = i
             return
           } // else: could not insert elem in node, try again
         } else { // if (i == Node.NODE_SIZE)
@@ -49,7 +49,7 @@ class ConcurrentUnrolledQueue[A] {
         }
         atomicTail.compareAndSet(t, nh) // Tail is falling behind.  Try to advance it
       } else {
-        var i = nh.deleteHint.get
+        var i = nh.deleteHint
         var v : Any = null
 
         while (i < Node.NODE_SIZE && {v = nh.get(i); v == DELETED}) {
@@ -58,7 +58,7 @@ class ConcurrentUnrolledQueue[A] {
 
         if (i < Node.NODE_SIZE_MIN_ONE) {
           if (nh.atomicElements.compareAndSet(i, v, DELETED)) {
-            nh.deleteHint.set(i)
+            nh.deleteHint = i
             return v.asInstanceOf[A]
           }
         } else if (i == Node.NODE_SIZE_MIN_ONE) { // if the element being removed is the last element of the node...
@@ -105,7 +105,7 @@ class ConcurrentUnrolledQueue[A] {
     def this(firstElem: Any) = {
       this()
       atomicElements.set(0, firstElem)
-      addHint.set(1)
+      addHint = 1
     }
 
     def set(i : Int, elem : Any) = {
@@ -130,9 +130,11 @@ class ConcurrentUnrolledQueue[A] {
 
     var atomicNext = new AtomicReference[Node[A]]
 
-    var addHint = new AtomicInteger(0)
+    @volatile
+    var addHint = 0
 
-    var deleteHint = new AtomicInteger(0)
+    @volatile
+    var deleteHint = 0
   }
 
   object Node {

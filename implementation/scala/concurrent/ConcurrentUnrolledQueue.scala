@@ -25,7 +25,7 @@ class ConcurrentUnrolledQueue[A] {
             return
           } // else: could not insert elem in node, try again
         } else { // if (i == Node.NODE_SIZE)
-          val n_ = new Node[A](elem)
+          val n_ = new Node(elem)
           if (t.atomicNext.compareAndSet(null, n_)) {
             atomicTail.compareAndSet(t, n_)
             return
@@ -84,7 +84,7 @@ class ConcurrentUnrolledQueue[A] {
   @scala.inline
   def tail() = atomicTail.get()
 
-  val atomicHead = new AtomicReference(new Node[A])
+  val atomicHead = new AtomicReference(new Node())
 
   val atomicTail = new AtomicReference(head())
 
@@ -96,7 +96,7 @@ class ConcurrentUnrolledQueue[A] {
     }
   }
 
-  class Node[A] () {
+  class Node () {
     import Node._
 
     /**
@@ -128,7 +128,7 @@ class ConcurrentUnrolledQueue[A] {
 
     val atomicElements = new AtomicReferenceArray[Any](NODE_SIZE)
 
-    var atomicNext = new AtomicReference[Node[A]]
+    var atomicNext = new AtomicReference[Node]
 
     @volatile
     var addHint = 0

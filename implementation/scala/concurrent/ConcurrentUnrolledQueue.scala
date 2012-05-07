@@ -14,23 +14,24 @@ class ConcurrentUnrolledQueue[A] {
       val t = tail()
       val n = t.next()
       if (n == null) {
-        var i = 0
+        var i = t.addHint.get()
         while (i < Node.NODE_SIZE && t.get(i) != null) {
           i += 1
         }
+
         if (i < Node.NODE_SIZE) {
           if (t.atomicElements.compareAndSet(i, null, elem)) {
+            t.addHint.set(i)
             return
-          }
+          } // else: could not insert elem in node, try again
         } else { // if (i == Node.NODE_SIZE)
-          val n_ = new Node[A]
-          n_.set(0, elem)
+          val n_ = new Node[A](elem)
           if (t.atomicNext.compareAndSet(null, n_)) {
             atomicTail.compareAndSet(t, n_)
             return
-          }
+          } // else: could not add Node at end of queue, try again
         }
-      } else {
+      } else { // tail does not point to end of list, try to advance it, then try again
         atomicTail.compareAndSet(t, n)
       }
     }
@@ -96,6 +97,15 @@ class ConcurrentUnrolledQueue[A] {
   class Node[A] () {
     import Node._
 
+    /**
+     * Creates a node with an initial element and sets the hint to 1
+     */
+    def this(firstElem: Any) = {
+      this()
+      atomicElements.set(0, firstElem)
+      addHint.set(1)
+    }
+
     def set(i : Int, elem : Any) = {
       atomicElements.set(i, elem)
     }
@@ -107,6 +117,8 @@ class ConcurrentUnrolledQueue[A] {
     val atomicElements = new AtomicReferenceArray[Any](NODE_SIZE)
 
     var atomicNext = new AtomicReference[Node[A]]
+
+    var addHint = new AtomicInteger(0)
   }
 
   object Node {

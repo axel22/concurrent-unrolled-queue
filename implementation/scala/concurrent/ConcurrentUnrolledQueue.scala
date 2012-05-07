@@ -51,7 +51,8 @@ class ConcurrentUnrolledQueue[A] {
       } else {
         var i = 0
         var v : Any = null
-        while (i < Node.NODE_SIZE && (v = nh.get(i)) == DELETED) {
+
+        while (i < Node.NODE_SIZE && {v = nh.get(i); v == DELETED}) {
           i += 1
         }
 
@@ -113,6 +114,16 @@ class ConcurrentUnrolledQueue[A] {
     def get(i : Int) = atomicElements.get(i : Int)
 
     def next() = atomicNext.get()
+
+//    def mkString(): String = {
+//      var i = 0
+//      var s = ""
+//      while (i < atomicElements.length()) {
+//        s += atomicElements.get(i)
+//        i += 1
+//      }
+//      return s
+//    }
 
     val atomicElements = new AtomicReferenceArray[Any](NODE_SIZE)
 

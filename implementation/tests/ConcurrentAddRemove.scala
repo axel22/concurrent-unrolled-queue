@@ -38,7 +38,11 @@ object ConcurrentAddRemove {
           //TODO: if an element has been added twice, and is removed twice, this test won't notice it.
           readSet += elem
         }
-        println("One reader is done. Read: " + sort(readSet));
+        println("One reader is done." +
+            (if (shouldPrintSet)
+              "Read: " + sort(readSet)
+            else
+              ""))
         main ! readSet
       }
     }
@@ -76,7 +80,10 @@ object ConcurrentAddRemove {
     new collection.immutable.TreeSet[String]()(Ordering.by[String, Int](_.toInt)) ++ set
   }
 
+  def shouldPrintSet() = NB_ELEMENTS <= SET_SIZE_PRINT_THRESHOLD
+
   val NB_ELEMENTS = 1 << 16
   val NB_WRITER = 1 << 4
   val NB_READER = 1 << 4
+  val SET_SIZE_PRINT_THRESHOLD = 1 << 10
 }

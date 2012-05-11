@@ -10,6 +10,8 @@ object ConcurrentAddRemove {
     val sourceQueue = newSourceQueue(tSet)
     val unrolledQueue = new ConcurrentUnrolledQueue[String]()
 
+    println("Enqueuing elements to the unrolled queue...")
+
     0 until NB_WRITER foreach {
       _ =>
       var elem: String = null
@@ -20,7 +22,7 @@ object ConcurrentAddRemove {
       }
     }
 
-    println("Finished adding elements to the unrolled queue")
+    println("Done enqueuing. Now reading elements from unrolled queue...")
 
     val main = Actor.self
 
@@ -28,24 +30,24 @@ object ConcurrentAddRemove {
       _ =>
       var elem: String = null
       Actor.actor {
-        var ownTestSet = new collection.mutable.HashSet[String]() ++ tSet
+        var readSet = new collection.mutable.HashSet[String]()
         while ({
           elem = unrolledQueue.dequeue()
           elem != null
         }) {
           //TODO: if an element has been added twice, and is removed twice, this test won't notice it.
-          ownTestSet -= elem
+          readSet += elem
         }
-        println("One reader is done reading");
-        main ! ownTestSet
+        println("One reader is done. Read: " + sort(readSet));
+        main ! readSet
       }
     }
 
     var runningReaders = NB_READER
     while (runningReaders != 0) {
       main ? match {
-        case readerRemainingSet: collection.mutable.Set[String] => {
-          tSet --= readerRemainingSet
+        case readerReadSet: collection.mutable.Set[String] => {
+          tSet --= readerReadSet
           runningReaders -= 1
         }
       }
@@ -68,6 +70,10 @@ object ConcurrentAddRemove {
     val source = new ConcurrentLinkedQueue[A]()
     elems foreach { source.offer(_) }
     source
+  }
+
+  def sort(set: collection.mutable.Set[String]) = {
+    new collection.immutable.TreeSet[String]()(Ordering.by[String, Int](_.toInt)) ++ set
   }
 
   val NB_ELEMENTS = 1 << 16

@@ -5,6 +5,23 @@ import java.util.concurrent.atomic._
 class ConcurrentUnrolledQueue[A] {
 //  override def companion: scala.collection.generic.GenericCompanion[ConcurrentUnrolledQueue] = ConcurrentUnrolledQueue
 
+  //TODO Move this class to another file
+  object QueueStats {
+    object EXIT {}
+    object SEND_STATISTICS {}
+    import actors.Actor._
+    var totalDequeueTries = 0
+    val statHandler = actor {
+      loop {
+        react {
+          case nDequeueTries: Int => totalDequeueTries += nDequeueTries
+          case SEND_STATISTICS => reply(totalDequeueTries)
+          case EXIT => exit
+        }
+      }
+    }
+  }
+
   def enqueue(elem: A): Unit = {
     if (elem == null) {
       throw new NullPointerException("Queue cannot hold null values.")
@@ -38,7 +55,10 @@ class ConcurrentUnrolledQueue[A] {
   }
 
   def dequeue(): A = {
+  var nDequeueTries = 0
+  def dequeue_(): A = {
     while (true) {
+      nDequeueTries += 1
       val h = head
       val t = tail
       val nh = h.next
@@ -74,6 +94,10 @@ class ConcurrentUnrolledQueue[A] {
     }
 
     return null.asInstanceOf[A] // should never happen, maybe throw an exception instead ?
+  }
+  val r = dequeue_
+  QueueStats.statHandler ! nDequeueTries
+  r
   }
 
   val DELETED = new AnyRef()

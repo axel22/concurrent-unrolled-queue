@@ -162,7 +162,7 @@ class ConcurrentUnrolledQueue[A] {
   }
 
   object Node {
-    val NODE_SIZE = 1 << 4
+    val NODE_SIZE = 1 << 10
     val NODE_SIZE_MIN_ONE = NODE_SIZE - 1
   }
 }

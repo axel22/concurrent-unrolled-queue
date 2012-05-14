@@ -1,4 +1,4 @@
-package tests
+package test
 import java.util.concurrent.ConcurrentLinkedQueue
 import scala.actors.Actor._
 import scala.concurrent.ConcurrentUnrolledQueue

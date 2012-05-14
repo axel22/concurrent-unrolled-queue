@@ -103,10 +103,10 @@ class ConcurrentUnrolledQueue[A] {
   val DELETED = new AnyRef()
 
   @scala.inline
-  def head() = atomicHead.get()
+  private def head() = atomicHead.get()
 
   @scala.inline
-  def tail() = atomicTail.get()
+  private def tail() = atomicTail.get()
 
   val atomicHead = new AtomicReference(new Node())
 
@@ -136,7 +136,7 @@ class ConcurrentUnrolledQueue[A] {
       atomicElements.set(i, elem)
     }
 
-    def get(i : Int) = atomicElements.get(i : Int)
+    def get(i : Int) = atomicElements.get(i)
 
     def next() = atomicNext.get()
 

@@ -1,4 +1,4 @@
-package tests
+package test
 import scala.concurrent.ConcurrentUnrolledQueue
 
 object AddRemove {

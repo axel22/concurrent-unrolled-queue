@@ -23,12 +23,12 @@ object ConcurrentAddRemove {
     }
 
     // Very basic statistics indeed
-    val totalDequeueAttempts = (testedQueue.QueueStats.statHandler !? testedQueue.QueueStats.SEND_STATISTICS) match {
-      case n: Int => n
-    }
-    println("Ran " + totalDequeueAttempts + " attemps to delete before emptying queue")
-
-    testedQueue.QueueStats.statHandler ! testedQueue.QueueStats.EXIT
+//    val totalDequeueAttempts = (testedQueue.QueueStats.statHandler !? testedQueue.QueueStats.SEND_STATISTICS) match {
+//      case n: Int => n
+//    }
+//    println("Ran " + totalDequeueAttempts + " attemps to delete before emptying queue")
+//
+//    testedQueue.QueueStats.statHandler ! testedQueue.QueueStats.EXIT
   }
 
   def testSet(): Set[String] = {
@@ -102,7 +102,7 @@ object ConcurrentAddRemove {
         case readData: Set[A] => {
           allReadData ++= readData
           runningReaders -= 1
-          println("One reader is done.")// + (if (shouldPrintSet) "Read: " + sort(readData) else ""))
+          println("One reader is done and has read " + readData.size + " elements")// + (if (shouldPrintSet) "Read: " + sort(readData) else ""))
         }
       }
     }

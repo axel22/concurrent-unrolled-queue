@@ -1,57 +1,45 @@
 package scala.concurrent
 
 import java.util.concurrent.atomic._
+import java.util.concurrent.ConcurrentLinkedQueue
 
 class ConcurrentUnrolledQueue[A] {
 //  override def companion: scala.collection.generic.GenericCompanion[ConcurrentUnrolledQueue] = ConcurrentUnrolledQueue
 
-  //TODO Move this class to another file
-//  object QueueStats {
-//    object EXIT {}
-//    object SEND_STATISTICS {}
-//    import actors.Actor._
-//    var totalDequeueTries = 0
-//    val statHandler = actor {
-//      loop {
-//        react {
-//          case nDequeueTries: Int => totalDequeueTries += nDequeueTries
-//          case SEND_STATISTICS => reply(totalDequeueTries)
-//          case EXIT => exit
-//        }
-//      }
+  def enqueue(elem1: A, elem2: A): A = {
+//    if (elem == null) {
+//      throw new NullPointerException("Queue cannot hold null values.")
 //    }
-//  }
-
-  def enqueue(elem: A): Unit = {
-    if (elem == null) {
-      throw new NullPointerException("Queue cannot hold null values.")
-    }
 
     while (true) {
       val t = tail()
       val n = t.next()
       if (n == null) {
-        var i = t.addHint
+        var i = 0// t.addHint
         while (i < Node.NODE_SIZE && t.get(i) != null) {
           i += 1
         }
 
         if (i < Node.NODE_SIZE) {
-          if (t.atomicElements.compareAndSet(i, null, elem)) {
+          assert(i == 1)
+          if (t.atomicElements.compareAndSet(i, null, elem2)) {
             t.addHint = i
-            return
+            return elem2
           } // else: could not insert elem in node, try again
         } else { // if (i == Node.NODE_SIZE)
-          val n_ = new Node(elem)
+          val n_ = new Node(elem1)
           if (t.atomicNext.compareAndSet(null, n_)) {
             atomicTail.compareAndSet(t, n_)
-            return
+            return elem1
           } // else: could not add Node at end of queue, try again
         }
       } else { // tail does not point to end of list, try to advance it, then try again
         atomicTail.compareAndSet(t, n)
       }
     }
+
+    assert(false)
+    return null.asInstanceOf[A]
   }
 
   def dequeue(): A = {
@@ -69,7 +57,7 @@ class ConcurrentUnrolledQueue[A] {
         }
         atomicTail.compareAndSet(t, nh) // Tail is falling behind.  Try to advance it
       } else {
-        var i = nh.deleteHint
+        var i = 0//nh.deleteHint
         var v : Any = null
 
         while (i < Node.NODE_SIZE && {v = nh.get(i); v == DELETED}) {
@@ -85,6 +73,7 @@ class ConcurrentUnrolledQueue[A] {
           /* This needs some more careful thinking. */
           if (atomicHead.compareAndSet(h, nh)) {
             nh.set(Node.NODE_SIZE_MIN_ONE, DELETED)
+//            removedNodes.add(nh)
             return v.asInstanceOf[A]
           }
         } else { // if (i == Node.NODE_SIZE)
@@ -98,6 +87,39 @@ class ConcurrentUnrolledQueue[A] {
 //  val r = dequeue_
 //  QueueStats.statHandler ! nDequeueTries
 //  r
+  }
+
+  val removedNodes = new ConcurrentLinkedQueue[Node]
+
+  def checkPredicates() = {
+    /* check removed nodes. */
+    var removedNode: Node = null
+    while ({ removedNode = removedNodes.poll; removedNode != null }) {
+      0 until Node.NODE_SIZE foreach {
+        i => assert(removedNode.get(i) == DELETED, "Element " + i + " is not marked as DELETED")
+      }
+    }
+
+    /* check head */
+    0 until Node.NODE_SIZE foreach { i => assert(head.get(i) == DELETED) }
+
+    /* check nodes */
+    var currentNode: Node = head
+    while ({ currentNode = currentNode.next; currentNode != null }) {
+//      println("checking node")
+      var i = 0
+      while (currentNode.get(i) == DELETED) {
+        i += 1
+      }
+      while (i < Node.NODE_SIZE && currentNode.get(i) != null) {
+        assert(currentNode.get(i) != DELETED)
+        i += 1
+      }
+      while (i < Node.NODE_SIZE) {
+        assert(currentNode.get(i) == null)
+        i += 1
+      }
+    }
   }
 
   val DELETED = new AnyRef()
@@ -162,7 +184,7 @@ class ConcurrentUnrolledQueue[A] {
   }
 
   object Node {
-    val NODE_SIZE = 1 << 10
+    val NODE_SIZE = 2
     val NODE_SIZE_MIN_ONE = NODE_SIZE - 1
   }
 }

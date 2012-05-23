@@ -18,12 +18,12 @@ object SimultaneousAddRemoveTest {
     while (nReaderWriter != 0) {
       ? match {
         case NRead(nRead1, nRead2) => {
-          println("One reader has read    " + nRead1 + " ELEM1 elements, " + nRead2 + " ELEM2 elements")
+          println("One reader has read    " + nRead1 + " ELEM1 elements, " + nRead2 + " ELEM2 elements, total = " + (nRead1 + nRead2))
           totalRead1 += nRead1
           totalRead2 += nRead2
         }
         case NWriten(nWriten1, nWriten2) => {
-          println("One writer has written " + nWriten1 + " ELEM1 elements, " + nWriten2 + " ELEM2 elements")
+          println("One writer has written " + nWriten1 + " ELEM1 elements, " + nWriten2 + " ELEM2 elements, total = " + (nWriten1 + nWriten2))
           totalWrite1 += nWriten1
           totalWrite2 += nWriten2
         }
@@ -58,6 +58,8 @@ object SimultaneousAddRemoveTest {
     } else {
       println("    => OK")
     }
+
+    println("total nodes that are still reachable: " + queue.countNode + ", expected: " + ((totalWrite1 + totalWrite2 + 1)/2))
   }
 
   def write(queue: ConcurrentUnrolledQueue[AnyRef]) = {
@@ -129,6 +131,6 @@ object SimultaneousAddRemoveTest {
 
   val NB_WRITERS = 1 << 0
   val NB_READERS = 1 << 0
-  val WRITE_TIME = 500
+  val WRITE_TIME = 4000
   val READ_TIME = WRITE_TIME
 }

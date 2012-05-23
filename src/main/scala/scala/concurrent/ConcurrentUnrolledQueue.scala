@@ -43,14 +43,10 @@ class ConcurrentUnrolledQueue[A] {
   }
 
   def dequeue(): A = {
-//  var nDequeueTries = 0
-//  def dequeue_(): A = {
     while (true) {
-//      nDequeueTries += 1
       val h = head
       val t = tail
       val nh = h.next
-      val nt = t.next
       if (h == t) {
         if (nh == null) {
           return null.asInstanceOf[A]
@@ -64,6 +60,10 @@ class ConcurrentUnrolledQueue[A] {
           i += 1
         }
 
+        if (v == null/*.asInstanceOf[Any]*/) {
+          return null.asInstanceOf[A]
+        }
+
         if (i < Node.NODE_SIZE_MIN_ONE) {
           if (nh.atomicElements.compareAndSet(i, v, DELETED)) {
             nh.deleteHint = i
@@ -72,7 +72,11 @@ class ConcurrentUnrolledQueue[A] {
         } else if (i == Node.NODE_SIZE_MIN_ONE) { // if the element being removed is the last element of the node...
           /* This needs some more careful thinking. */
           if (atomicHead.compareAndSet(h, nh)) {
-            nh.set(Node.NODE_SIZE_MIN_ONE, DELETED)
+            if (!nh.atomicElements.compareAndSet(Node.NODE_SIZE_MIN_ONE, v, DELETED)) {
+              assert(false, v + " vs " + nh.get(Node.NODE_SIZE_MIN_ONE))
+            }
+
+//            nh.set(Node.NODE_SIZE_MIN_ONE, DELETED)
 //            removedNodes.add(nh)
             return v.asInstanceOf[A]
           }
@@ -83,18 +87,16 @@ class ConcurrentUnrolledQueue[A] {
     }
 
     return null.asInstanceOf[A] // should never happen, maybe throw an exception instead ?
-//  }
-//  val r = dequeue_
-//  QueueStats.statHandler ! nDequeueTries
-//  r
   }
 
-  val removedNodes = new ConcurrentLinkedQueue[Node]
+  private val removedNodes = new ConcurrentLinkedQueue[Node]
 
   def checkPredicates() = {
     /* check removed nodes. */
     var removedNode: Node = null
-    while ({ removedNode = removedNodes.poll; removedNode != null }) {
+    val rmdNodesIt = removedNodes.iterator
+    while (rmdNodesIt.hasNext()) {
+      removedNode = rmdNodesIt.next()
       0 until Node.NODE_SIZE foreach {
         i => assert(removedNode.get(i) == DELETED, "Element " + i + " is not marked as DELETED")
       }
@@ -122,6 +124,17 @@ class ConcurrentUnrolledQueue[A] {
     }
   }
 
+  def countNode = {
+    var i = 0
+    i += removedNodes.size()
+    var node = head
+    while (node != null) {
+      i += 1
+      node = node.atomicNext.get()
+    }
+    i
+  }
+
   val DELETED = new AnyRef()
 
   @scala.inline
@@ -140,6 +153,7 @@ class ConcurrentUnrolledQueue[A] {
       head.set(i, DELETED)
       i += 1
     }
+    removedNodes.offer(head)
   }
 
   class Node () {

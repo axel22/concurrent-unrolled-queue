@@ -82,6 +82,10 @@ class ConcurrentUnrolledQueue[A] {
     return null.asInstanceOf[A] // should never happen, maybe throw an exception instead ?
   }
 
+  def checkPredicates() = {
+
+  }
+
   val DELETED = new AnyRef()
 
   @scala.inline

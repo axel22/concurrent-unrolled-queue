@@ -82,6 +82,22 @@ class ConcurrentUnrolledQueue[A] {
     return null.asInstanceOf[A] // should never happen, maybe throw an exception instead ?
   }
 
+  /* a simple size implementation. not very useful in a concurrent context */
+  def size(): Int = {
+    var count = 0
+    var current = head
+    while ({ current = current.next(); current != null }) {
+      var i = 0
+      while (i < Node.NODE_SIZE) {
+        val elem = current.get(i)
+        if (elem != DELETED && elem != null) {
+          count += 1
+        }
+      }
+    }
+    count
+  }
+
   def checkPredicates() = {
 
   }

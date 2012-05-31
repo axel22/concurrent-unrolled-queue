@@ -50,8 +50,8 @@ class ConcurrentUnrolledQueue[A] {
   def dequeue(): A = {
     while (true) {
       val h = head
-      val t = tail
       val nh = h.next
+      val t = tail
 
       if (h == t) {
         if (nh == null) {
@@ -62,7 +62,7 @@ class ConcurrentUnrolledQueue[A] {
         var i = nh.deleteHint
         var v : Any = null
 
-        while (i < Node.NODE_SIZE && {v = nh.get(i); v == DELETED}) {
+        while (i < Node.NODE_SIZE && { v = nh.get(i); v == DELETED }) {
           i += 1
         }
 
@@ -90,6 +90,56 @@ class ConcurrentUnrolledQueue[A] {
     }
 
     return null.asInstanceOf[A] // should never happen, maybe throw an exception instead ?
+  }
+
+  def peek(): A = {
+    while (true) {
+      val h = head
+      val nh = h.next
+      val t = tail
+
+      if (h == t) {
+        if (nh == null) {
+          return null.asInstanceOf[A]
+        }
+        compareAndSwapTail(t, nh) // Tail is falling behind.  Try to advance it
+      } else {
+        var i = nh.deleteHint
+        var v : Any = null
+
+        while (i < Node.NODE_SIZE && { v = nh.get(i); v == DELETED }) {
+          i += 1
+        }
+
+        /* it would be nice to advance deleteHint */
+
+        if (i < Node.NODE_SIZE) {
+          return v.asInstanceOf[A]
+        } else {
+          /* node has been deleted. */
+        }
+      }
+    }
+
+    return null.asInstanceOf[A]
+  }
+
+  /* a simple size implementation. not very useful in a concurrent context */
+  def size(): Int = {
+    var count = 0
+    var current = head
+    while ({ current = current.next; current != null }) {
+      var i = current.deleteHint
+      while (i < Node.NODE_SIZE) {
+        val elem = current.get(i)
+        if (elem == null) {
+          return count
+        } else if (elem != DELETED) {
+          count += 1
+        }
+      }
+    }
+    count
   }
 
   @scala.inline

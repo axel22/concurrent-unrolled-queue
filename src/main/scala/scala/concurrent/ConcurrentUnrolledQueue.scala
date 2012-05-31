@@ -5,14 +5,24 @@ import java.util.concurrent.atomic._
 class ConcurrentUnrolledQueue[A] {
 //  override def companion: scala.collection.generic.GenericCompanion[ConcurrentUnrolledQueue] = ConcurrentUnrolledQueue
 
+  import ConcurrentUnrolledQueue._
+
   def enqueue(elem: A): Unit = {
     if (elem == null) {
       throw new NullPointerException("Queue cannot hold null values.")
     }
 
-    while (true) {
-      val t = tail()
-      val n = t.next()
+/*
+    val optimisticTail = tail
+    val optimisticHint = optimisticTail.addHint
+    if (optimisticTail.compareAndSwap(optimisticHint, null, elem)) {
+      if (optimisticHint < Node.NODE_SIZE_MIN_ONE) optimisticTail.addHint = optimisticHint + 1
+      return
+    } else
+*/
+    while(true) {
+      val t = tail
+      val n = t.next
       if (n == null) {
         var i = t.addHint
         while (i < Node.NODE_SIZE && t.get(i) != null) {
@@ -20,19 +30,19 @@ class ConcurrentUnrolledQueue[A] {
         }
 
         if (i < Node.NODE_SIZE) {
-          if (t.atomicElements.compareAndSet(i, null, elem)) {
-            t.addHint = i
+          if (t.compareAndSwapElem(i, null, elem)) {
+            /* if (i < Node.NODE_SIZE_MIN_ONE) */ t.addHint = i + 1
             return
           } // else: could not insert elem in node, try again
         } else { // if (i == Node.NODE_SIZE)
           val n_ = new Node(elem)
-          if (t.atomicNext.compareAndSet(null, n_)) {
-            atomicTail.compareAndSet(t, n_)
+          if (t.compareAndSwapNext(null, n_)) {
+            compareAndSwapTail(t, n_)
             return
           } // else: could not add Node at end of queue, try again
         }
       } else { // tail does not point to end of list, try to advance it, then try again
-        atomicTail.compareAndSet(t, n)
+        compareAndSwapTail(t, n)
       }
     }
   }
@@ -47,7 +57,7 @@ class ConcurrentUnrolledQueue[A] {
         if (nh == null) {
           return null.asInstanceOf[A]
         }
-        atomicTail.compareAndSet(t, nh) // Tail is falling behind.  Try to advance it
+        compareAndSwapTail(t, nh) // Tail is falling behind.  Try to advance it
       } else {
         var i = nh.deleteHint
         var v : Any = null
@@ -62,14 +72,14 @@ class ConcurrentUnrolledQueue[A] {
         }
 
         if (i < Node.NODE_SIZE_MIN_ONE) {
-          if (nh.atomicElements.compareAndSet(i, v, DELETED)) {
+          if (nh.compareAndSwapElem(i, v, DELETED)) {
             nh.deleteHint = i
             return v.asInstanceOf[A]
           }
         } else if (i == Node.NODE_SIZE_MIN_ONE) { // if the element being removed is the last element of the node...
           /* This needs some more careful thinking. */
           /* 23.05.2012, pretty sure about this one now */
-          if (atomicHead.compareAndSet(h, nh)) {
+          if (compareAndSwapHead(h, nh)) {
             nh.set(Node.NODE_SIZE_MIN_ONE, DELETED)
             return v.asInstanceOf[A]
           }
@@ -82,21 +92,23 @@ class ConcurrentUnrolledQueue[A] {
     return null.asInstanceOf[A] // should never happen, maybe throw an exception instead ?
   }
 
-  def checkPredicates() = {
-
+  @scala.inline
+  private def compareAndSwapHead(expect: Node, update: Node) = {
+    UNSAFE.compareAndSwapObject(this, HEAD_OFFSET, expect, update)
   }
 
-  val DELETED = new AnyRef()
-
   @scala.inline
-  private def head() = atomicHead.get()
+  private def compareAndSwapTail(expect: Node, update: Node) = {
+    UNSAFE.compareAndSwapObject(this, TAIL_OFFSET, expect, update)
+  }
 
-  @scala.inline
-  private def tail() = atomicTail.get()
+  private val DELETED = new AnyRef()
 
-  val atomicHead = new AtomicReference(new Node())
+  @volatile
+  private var head = new Node()
 
-  val atomicTail = new AtomicReference(head())
+  @volatile
+  private var tail = head
 
   {
     var i = 0
@@ -106,7 +118,7 @@ class ConcurrentUnrolledQueue[A] {
     }
   }
 
-  class Node () {
+  final class Node () {
     import Node._
 
     /**
@@ -114,17 +126,27 @@ class ConcurrentUnrolledQueue[A] {
      */
     def this(firstElem: Any) = {
       this()
-      atomicElements.set(0, firstElem)
+      set(0, firstElem)
       addHint = 1
     }
 
-    def set(i : Int, elem : Any) = {
-      atomicElements.set(i, elem)
+    @scala.inline
+    def compareAndSwapElem(i: Int, expect: Any, update: Any) = {
+      UNSAFE.compareAndSwapObject(elements, ELEMENTS_OFFSET + i * ELEMENTS_INDEX_STEP, expect, update)
     }
 
-    def get(i : Int) = atomicElements.get(i)
+    @scala.inline
+    def compareAndSwapNext(expect: Node, update: Node) = {
+      UNSAFE.compareAndSwapObject(this, NEXT_OFFSET, expect, update)
+    }
 
-    def next() = atomicNext.get()
+    @scala.inline
+    def set(i : Int, elem : Any) = {
+      UNSAFE.putObjectVolatile(elements, ELEMENTS_OFFSET + i * ELEMENTS_INDEX_STEP, elem)
+    }
+
+    @scala.inline
+    def get(i : Int) = UNSAFE.getObjectVolatile(elements, ELEMENTS_OFFSET + i * ELEMENTS_INDEX_STEP)
 
 //    def mkString(): String = {
 //      var i = 0
@@ -136,9 +158,10 @@ class ConcurrentUnrolledQueue[A] {
 //      return s
 //    }
 
-    val atomicElements = new AtomicReferenceArray[Any](NODE_SIZE)
+    val elements = new Array[Any](NODE_SIZE)
 
-    var atomicNext = new AtomicReference[Node]
+    @volatile
+    var next: Node = null
 
     @volatile
     var addHint = 0
@@ -148,7 +171,39 @@ class ConcurrentUnrolledQueue[A] {
   }
 
   object Node {
-    val NODE_SIZE = 1 << 10
+
+    val NODE_SIZE = 1 << 6
+
     val NODE_SIZE_MIN_ONE = NODE_SIZE - 1
+
+    val NEXT_OFFSET = UNSAFE.objectFieldOffset(classOf[Node].getDeclaredField("next"))
+
+    val ELEMENTS_OFFSET = UNSAFE.arrayBaseOffset(classOf[Array[Any]])
+
+    val ELEMENTS_INDEX_STEP = UNSAFE.arrayIndexScale(classOf[Array[Any]])
+
   }
+
 }
+
+object ConcurrentUnrolledQueue {
+
+  val UNSAFE = {
+    if (this.getClass.getClassLoader == null)
+      sun.misc.Unsafe.getUnsafe()
+    else
+      try {
+        val fld = classOf[sun.misc.Unsafe].getDeclaredField("theUnsafe")
+        fld.setAccessible(true)
+        fld.get(null).asInstanceOf[sun.misc.Unsafe]
+      } catch {
+        case e => throw new RuntimeException("Could not obtain access to sun.misc.Unsafe", e)
+      }
+  }
+
+  val HEAD_OFFSET = UNSAFE.objectFieldOffset(classOf[ConcurrentUnrolledQueue[_]].getDeclaredField("head"))
+
+  val TAIL_OFFSET = UNSAFE.objectFieldOffset(classOf[ConcurrentUnrolledQueue[_]].getDeclaredField("tail"))
+
+}
+

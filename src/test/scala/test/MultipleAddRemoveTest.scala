@@ -22,3 +22,4 @@ object MultipleAddRemoveTest {
 
   val NB_ELEMENTS = 1 << 10
 }
+

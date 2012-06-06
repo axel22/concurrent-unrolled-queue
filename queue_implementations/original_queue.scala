@@ -59,7 +59,7 @@ class ConcurrentUnrolledQueue[A] {
 
       if (h == t) {
         if (nh == null) {
-          return null.asInstanceOf[A]
+          throw new NoSuchElementException("first element of empty queue")
         }
 
         /* If no thread is adding elements, and there are threads removing, tail
@@ -77,7 +77,7 @@ class ConcurrentUnrolledQueue[A] {
         }
 
         if (v == null) {
-          return null.asInstanceOf[A]
+          throw new NoSuchElementException("first element of empty queue")
         }
 
         if (i < Node.NODE_SIZE_MIN_ONE) {
@@ -99,7 +99,7 @@ class ConcurrentUnrolledQueue[A] {
       }
     }
 
-    return null.asInstanceOf[A] // should never happen, maybe throw an exception instead ?
+    throw new Error("reached unreachable point") // should never happen, maybe throw an exception instead ?
   }
 
   def peek(): A = {
@@ -147,9 +147,32 @@ class ConcurrentUnrolledQueue[A] {
         } else if (elem != DELETED) {
           count += 1
         }
+        i += 1
       }
     }
     count
+  }
+
+  def isEmpty(): Boolean = {
+    var current = head
+
+    while ({ current = current.next.get; current != null }) {
+      var i = current.deleteHint
+
+      while (i < Node.NODE_SIZE) {
+        val elem = current.get(i)
+
+        if (elem == null) {
+          return true;
+        } else if (elem != DELETED) {
+          return false
+        }
+
+        i += 1
+      }
+    }
+
+    return true
   }
 
 //  @scala.inline

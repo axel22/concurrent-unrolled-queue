@@ -52,6 +52,16 @@ class ConcurrentUnrolledQueue[A] {
   }
 
   def dequeue(): A = {
+    val optHeadNext = head.next.get
+    if (optHeadNext != null) {
+      val optHint = optHeadNext.deleteHint
+      val v = optHeadNext.get(optHint)
+      if (optHint < NODE_SIZE_MIN_ONE && v != null && v != DELETED) {
+        if (optHeadNext.compareAndSwapElem(optHint, v, DELETED))
+          return v.asInstanceOf[A]
+      }
+    }
+
     while (true) {
       val h = head
       val nh = h.next.get
@@ -71,18 +81,18 @@ class ConcurrentUnrolledQueue[A] {
         }
 
         if (v == null) {
-          /* this needs some more thinking. And an assert that would look like assert(nh == t,...) but it would'nt be thread safe */
           return null.asInstanceOf[A]
         }
 
         if (i < Node.NODE_SIZE_MIN_ONE) {
           if (nh.compareAndSwapElem(i, v, DELETED)) {
-            nh.deleteHint = i
+            if (nh.deleteHint <= i) {
+              nh.deleteHint = i + 1
+            }
+
             return v.asInstanceOf[A]
           }
         } else if (i == Node.NODE_SIZE_MIN_ONE) { // if the element being removed is the last element of the node...
-          /* This needs some more careful thinking. */
-          /* 23.05.2012, pretty sure about this one now */
           if (compareAndSwapHead(h, nh)) {
             nh.set(Node.NODE_SIZE_MIN_ONE, DELETED)
             nh.next.lazySet(head)

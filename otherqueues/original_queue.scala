@@ -82,7 +82,10 @@ class ConcurrentUnrolledQueue[A] {
 
         if (i < Node.NODE_SIZE_MIN_ONE) {
           if (nh.compareAndSwapElem(i, v, DELETED)) {
-            nh.deleteHint = i + 1
+            if (nh.deleteHint <= i) {
+              nh.deleteHint = i + 1
+            }
+
             return v.asInstanceOf[A]
           }
         } else if (i == Node.NODE_SIZE_MIN_ONE) { // if the element being removed is the last element of the node...

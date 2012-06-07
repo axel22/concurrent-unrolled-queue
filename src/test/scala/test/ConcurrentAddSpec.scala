@@ -10,17 +10,19 @@ class ConcurrentAddSpec extends FlatSpec {
 
     concurrentEnqueue(queue)
 
+    assert(!queue.isEmpty)
+    assert(queue.size() == WRITERS * ELEMENTS_PER_THREAD)
     assert(queue2Set(queue) == expectedSet())
   }
 
   def concurrentEnqueue(queue: ConcurrentUnrolledQueue[Int]) = {
     (for (threadid <- 0 until WRITERS) yield
       new Thread(new Runnable() {
-        override def run(): Unit = {
-          threadSet(threadid) foreach { e => queue.enqueue(e) }
+        override def run()= {
+          threadSet(threadid) foreach { queue enqueue _ }
         }
       })
-    ).map { t => t.start(); t }.foreach { _.join }
+    ) map { t => t.start(); t } foreach { _ join }
   }
 
   def threadSet(threadid: Int) = {

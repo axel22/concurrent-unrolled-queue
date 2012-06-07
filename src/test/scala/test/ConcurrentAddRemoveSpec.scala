@@ -22,6 +22,7 @@ class ConcurrentAddRemoveSpec extends FlatSpec {
     val dequeuedSet = dequeueResults.foldLeft(new collection.immutable.HashSet[Int]())((acc, res) => acc ++ res)
 
     assert(enqueuedSet.size >= dequeuedSet.size)
+    assert(queue.size() == enqueuedSet.size - dequeuedSet.size)
 
     remainingElements = enqueuedSet -- dequeuedSet
   }
@@ -34,10 +35,10 @@ class ConcurrentAddRemoveSpec extends FlatSpec {
     (for (threadid <- 0 until WRITERS) yield
       new Thread(new Runnable() {
         override def run(): Unit = {
-          threadSet(threadid) foreach { e => queue.enqueue(e) }
+          threadSet(threadid) foreach { queue enqueue _ }
         }
       })
-    ).map { t => t.start(); t }
+    ) map { t => t.start(); t }
   }
 
   def concurrentDequeue(queue: ConcurrentUnrolledQueue[Int]) = {
@@ -48,7 +49,7 @@ class ConcurrentAddRemoveSpec extends FlatSpec {
         override def run() = {
           var i = 0
           val readSet = new collection.mutable.HashSet[Int]()
-          while (i < ELEMENTS_PER_THREAD) {
+          while (i < (ELEMENTS_PER_THREAD * WRITERS) / READERS) {
             try {
               readSet += queue.dequeue()
             } catch {
@@ -85,7 +86,7 @@ class ConcurrentAddRemoveSpec extends FlatSpec {
 
   val READERS = 4
   val WRITERS = 4
-  val ELEMENTS_PER_THREAD = 20
+  val ELEMENTS_PER_THREAD = 200000
 
 }
 

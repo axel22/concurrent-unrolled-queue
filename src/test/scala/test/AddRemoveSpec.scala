@@ -23,8 +23,8 @@ class AddRemoveSpec extends FlatSpec {
   }
 
   it should "be of size 0 after dequeuing these N elements" in {
-    queue.dequeue()
-    queue.dequeue()
+    assert(queue.dequeue() == 1)
+    assert(queue.dequeue() == 2)
     assert(queue.isEmpty())
     assert(queue.size() == 0)
   }
@@ -32,19 +32,18 @@ class AddRemoveSpec extends FlatSpec {
   it should "retrieve the same elements that were added, in the same order they were added" in {
     val queue = new ConcurrentUnrolledQueue[Int]
     val nElements = 10000
-    val list = List.range(0, nElements)
-    list.foreach { x => queue.enqueue(x) }
-    var retrieved: List[Int] = Nil
+    val list = Range(0, nElements)
 
-    var i = 0
-    while (i < nElements) {
-      retrieved ::= queue.dequeue()
-      i += 1
-    }
-    retrieved = retrieved.reverse
+    list foreach { queue enqueue _ }
+
+    assert(!queue.isEmpty())
+    assert(queue.size() == nElements)
+
+    val retrieved =  for (i <- 0 until nElements) yield queue.dequeue()
 
     assert(list == retrieved)
     assert(queue.size() == 0)
+    assert(queue.isEmpty())
   }
 
   it should "throw NoSuchElementException if an empty queue is dequeued" in {

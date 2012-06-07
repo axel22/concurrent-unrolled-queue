@@ -110,8 +110,9 @@ class ConcurrentUnrolledQueue[A] {
 
       if (h == t) {
         if (nh == null) {
-          return null.asInstanceOf[A]
+          throw new NoSuchElementException("first element of empty queue")
         }
+
         compareAndSwapTail(t, nh) // Tail is falling behind.  Try to advance it
       } else {
         var i = nh.deleteHint
@@ -121,9 +122,8 @@ class ConcurrentUnrolledQueue[A] {
           i += 1
         }
 
-        /* it would be nice to advance deleteHint */
-
         if (i < Node.NODE_SIZE) {
+          nh.deleteHint = i
           return v.asInstanceOf[A]
         } else {
           /* node has been deleted. */
@@ -131,7 +131,7 @@ class ConcurrentUnrolledQueue[A] {
       }
     }
 
-    return null.asInstanceOf[A]
+    throw new Error("reached unreachable point")
   }
 
   /* a simple size implementation. not very useful in a concurrent context */
@@ -139,15 +139,21 @@ class ConcurrentUnrolledQueue[A] {
     var count = 0
     var current = head
     while ({ current = current.next.get; current != null }) {
-      var i = current.deleteHint
-      while (i < Node.NODE_SIZE) {
-        val elem = current.get(i)
-        if (elem == null) {
-          return count
-        } else if (elem != DELETED) {
-          count += 1
+      val first = current.get(0)
+      val last = current.get(Node.NODE_SIZE_MIN_ONE)
+      if (first != null && first != DELETED && last != null && last != DELETED) {
+        count += Node.NODE_SIZE
+      } else {
+        var i = current.deleteHint
+        while (i < Node.NODE_SIZE) {
+          val elem = current.get(i)
+          if (elem == null) {
+            return count
+          } else if (elem != DELETED) {
+            count += 1
+          }
+          i += 1
         }
-        i += 1
       }
     }
     count
@@ -174,6 +180,55 @@ class ConcurrentUnrolledQueue[A] {
 
     return true
   }
+
+/*
+  def iterator() = {
+    new Iterator[A]() = {
+      var next: A = null
+      var current = head
+      var index = current.deleteHint
+
+      override def hasNext(): Boolean = {
+        if (next != null) {
+          return true
+        }
+
+        while (current != null) {
+          var v: A = null
+          while (index < Node.NODE_SIZE && {v = current.get(index); v == DELETED}) {
+            index += 1
+          }
+
+          if (index < Node.NODE_SIZE) {
+            if (current.deleteHint < index)
+              current.deleteHint = index
+
+            if (v == null) {
+              return false
+            }
+
+            next = v
+            return true
+          }
+
+          current = current.next.get
+          index = current.deleteHint
+        }
+
+        return false
+      }
+
+      override def next() = {
+        if (next != null) {
+          current = null
+          next
+        } else {
+          while (current != null) {
+
+          }
+    }
+  }
+*/
 
 //  @scala.inline
   private def compareAndSwapHead(expect: Node, update: Node) = {

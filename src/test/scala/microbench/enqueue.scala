@@ -1,31 +1,31 @@
 package microbench
 
+import scala.concurrent.ConcurrentUnrolledQueue
 import scala.testing.Benchmark
-import concurrent.ConcurrentUnrolledQueue
 
 object enqueue extends Benchmark {
 
-  var cuQUEUE: ConcurrentUnrolledQueue[AnyRef] = null
-  val OBJ = new AnyRef
-  val nElements = sys.props("bench.elements").toInt
+  var queue: ConcurrentUnrolledQueue[AnyRef] = null
+  val totalElements = sys.props("bench.elements").toInt
 
   override def setUp() = {
-    cuQUEUE = new ConcurrentUnrolledQueue[AnyRef]
+    queue = new ConcurrentUnrolledQueue[AnyRef]
   }
 
   override def run = {
-    val nElements = this.nElements
-    val cuQueue = cuQUEUE
-    val obj = OBJ
+    val totalElements = this.totalElements
+    val queue = this.queue
+    val obj = new AnyRef()
+
     var i = 0
-    while (i < nElements) {
-      cuQueue.enqueue(obj)
+    while (i < totalElements) {
+      queue.enqueue(obj)
       i += 1
     }
   }
 
   override def tearDown() = {
-    cuQUEUE = null
+    queue = null
   }
 
 }

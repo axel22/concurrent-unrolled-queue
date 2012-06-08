@@ -5,7 +5,7 @@ import scala.testing.Benchmark
 
 object linkeddequeue extends Benchmark {
 
-  val nElements = sys.props("bench.elements").toInt
+  val totalElements = sys.props("bench.elements").toInt
   val OBJ = new AnyRef()
   var queue: ConcurrentLinkedQueue[AnyRef] = null
 
@@ -14,15 +14,18 @@ object linkeddequeue extends Benchmark {
 
     val obj = OBJ
     var i = 0
-    while (i < nElements) {
+    while (i < totalElements) {
       queue.offer(obj)
       i += 1
     }
   }
 
   override def run() = {
+    val queue = this.queue
+    val totalElements = this.totalElements
+
     var i = 0
-    while (i < nElements) {
+    while (i < totalElements) {
       queue.poll()
       i += 1
     }

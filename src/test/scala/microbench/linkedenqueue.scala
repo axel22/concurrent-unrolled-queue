@@ -1,29 +1,31 @@
 package microbench
-import scala.testing.Benchmark
+
 import java.util.concurrent.ConcurrentLinkedQueue
+import scala.testing.Benchmark
 
 object linkedenqueue extends Benchmark {
-  var clQUEUE: ConcurrentLinkedQueue[AnyRef] = null
-  val OBJ = new AnyRef
-  val nElements = sys.props("bench.elements").toInt
+
+  var queue: ConcurrentLinkedQueue[AnyRef] = null
+  val totalElements = sys.props("bench.elements").toInt
 
   override def setUp() = {
-    clQUEUE = new ConcurrentLinkedQueue[AnyRef]
+    queue = new ConcurrentLinkedQueue[AnyRef]
   }
 
   override def run = {
-    val nElements = this.nElements
-    val clQueue = clQUEUE
-    val obj = OBJ
+    val totalElements = this.totalElements
+    val queue = this.queue
+    val obj = new AnyRef()
+
     var i = 0
-    while (i < nElements) {
-      clQueue.offer(obj)
+    while (i < totalElements) {
+      queue.offer(obj)
       i += 1
     }
   }
 
   override def tearDown() = {
-    clQUEUE = null
+    queue = null
   }
 
 }

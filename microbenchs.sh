@@ -11,8 +11,6 @@ else
   QUEUES=otherqueues/*.scala
 fi
 
-CLEAN_SBT_OUTPUT="grep -v info" | expand --tabs=2
-
 print()
 {
   color=$(echo $1 | tr '[A-Z]' '[a-z]')

@@ -56,6 +56,7 @@ bench_multithread()
   do
     print purple "    -> $nthread threads, $ELEMENTS elements"
     sbt "bench $ELEMENTS $nthread microbench.concurrentenqueue $RUNS"
+    sbt "bench $ELEMENTS $nthread microbench.concurrentdequeue $RUNS"
   done
 }
 
@@ -72,6 +73,7 @@ bench_reference_multithread()
   do
     print purple "    -> $nthread threads, $ELEMENTS elements"
     sbt "bench $ELEMENTS $nthread microbench.concurrentlinkedenqueue $RUNS"
+    sbt "bench $ELEMENTS $nthread microbench.concurrentlinkeddequeue $RUNS"
   done
 }
 
@@ -86,3 +88,4 @@ do
   bench_singlethread "$queue"
   bench_multithread "$queue"
 done
+

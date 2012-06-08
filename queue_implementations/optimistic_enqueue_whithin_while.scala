@@ -275,7 +275,7 @@ object ConcurrentUnrolledQueue {
 
   object Node {
 
-    val NODE_SIZE = 1 << 11
+    val NODE_SIZE = 1 << 12
 
     val NODE_SIZE_MIN_ONE = NODE_SIZE - 1
 

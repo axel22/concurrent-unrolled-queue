@@ -294,14 +294,13 @@ object ConcurrentUnrolledQueue {
         }
 
         if (index < Node.NODE_SIZE) {
-          current.deleteHint = index
-
           if (v == null) {
             current.addHint = index
             return false
           }
 
           nextElem = v
+          index += 1 // we would'nt want to give the same element back, wouldn't we ?
           return true
         }
 
@@ -316,7 +315,7 @@ object ConcurrentUnrolledQueue {
       if (hasNext()) {
         val ret = nextElem
         nextElem = null
-        return nextElem.asInstanceOf[A]
+        return ret.asInstanceOf[A]
       } else {
         throw new NoSuchElementException("next on empty iterator")
       }

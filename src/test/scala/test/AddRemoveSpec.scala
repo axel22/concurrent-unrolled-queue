@@ -29,19 +29,24 @@ class AddRemoveSpec extends FlatSpec {
     assert(queue.size() == 0)
   }
 
+  val totalElements = 10000
+  val testSeq = Range(0, totalElements)
+
+  it should "iterate through the elements that were added, in the same order they were added" in {
+    assert(queue.isEmpty())
+
+    testSeq foreach { queue enqueue _ }
+
+    assert(testSeq == queue.iterator.toList)
+  }
+
   it should "retrieve the same elements that were added, in the same order they were added" in {
-    val queue = new ConcurrentUnrolledQueue[Int]
-    val nElements = 10000
-    val list = Range(0, nElements)
-
-    list foreach { queue enqueue _ }
-
     assert(!queue.isEmpty())
-    assert(queue.size() == nElements)
+    assert(queue.size() == totalElements)
 
-    val retrieved =  for (i <- 0 until nElements) yield queue.dequeue()
+    val retrieved =  for (i <- 0 until totalElements) yield queue.dequeue()
 
-    assert(list == retrieved)
+    assert(testSeq == retrieved)
     assert(queue.size() == 0)
     assert(queue.isEmpty())
   }

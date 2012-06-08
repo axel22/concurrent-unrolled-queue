@@ -181,11 +181,10 @@ class ConcurrentUnrolledQueue[A] {
     return true
   }
 
-/*
   def iterator(): Iterator[A] = {
-    new CUQIterator()
+    new CUQIterator(head)
   }
-*/
+
 //  @scala.inline
   private def compareAndSwapHead(expect: Node, update: Node) = {
     UNSAFE.compareAndSwapObject(this, HEAD_OFFSET, expect, update)
@@ -196,8 +195,6 @@ class ConcurrentUnrolledQueue[A] {
     UNSAFE.compareAndSwapObject(this, TAIL_OFFSET, expect, update)
 //    tail.compareAndSet(expect, update)
   }
-
-  private val DELETED = new AnyRef()
 
   @volatile
   private var head = new Node()
@@ -212,6 +209,10 @@ class ConcurrentUnrolledQueue[A] {
       i += 1
     }
   }
+
+}
+
+object ConcurrentUnrolledQueue {
 
   final class Node () {
     import Node._
@@ -249,20 +250,11 @@ class ConcurrentUnrolledQueue[A] {
       elements.get(i)
     }
 
-//    def mkString(): String = {
-//      var i = 0
-//      var s = ""
-//      while (i < atomicElements.length()) {
-//        s += atomicElements.get(i)
-//        i += 1
-//      }
-//      return s
-//    }
-
 //    val elements = new Array[Any](NODE_SIZE)
     val elements = new AtomicReferenceArray[Any](NODE_SIZE)
 
-    @volatile
+//    @volatile
+//    var next = null
     var next = new AtomicReference[Node](null)
 
     @volatile
@@ -286,10 +278,8 @@ class ConcurrentUnrolledQueue[A] {
 
   }
 
-/*
-  class CUQIterator extends Iterator[A] {
+  final class CUQIterator[A](private var current: Node) extends Iterator[A] {
     private var nextElem: Any = null
-    private var current = head
     private var index = current.deleteHint
 
     override def hasNext(): Boolean = {
@@ -299,15 +289,15 @@ class ConcurrentUnrolledQueue[A] {
 
       while (current != null) {
         var v: Any = null
-        while (index < Node.NODE_SIZE && {v = current.get(index); v == DELETED}) {
+        while (index < Node.NODE_SIZE && { v = current.get(index); v == DELETED }) {
           index += 1
         }
 
         if (index < Node.NODE_SIZE) {
-          if (current.deleteHint < index)
-            current.deleteHint = index
+          current.deleteHint = index
 
           if (v == null) {
+            current.addHint = index
             return false
           }
 
@@ -324,19 +314,16 @@ class ConcurrentUnrolledQueue[A] {
 
     override def next(): A = {
       if (hasNext()) {
-        nextElem.asInstanceOf[A]
+        val ret = nextElem
+        nextElem = null
+        return nextElem.asInstanceOf[A]
       } else {
         throw new NoSuchElementException("next on empty iterator")
       }
     }
   }
-*/
 
-}
-
-object ConcurrentUnrolledQueue {
-
-  val UNSAFE = {
+  private val UNSAFE = {
     if (this.getClass.getClassLoader == null)
       sun.misc.Unsafe.getUnsafe()
     else
@@ -349,9 +336,11 @@ object ConcurrentUnrolledQueue {
       }
   }
 
-  val HEAD_OFFSET = UNSAFE.objectFieldOffset(classOf[ConcurrentUnrolledQueue[_]].getDeclaredField("head"))
+  private val HEAD_OFFSET = UNSAFE.objectFieldOffset(classOf[ConcurrentUnrolledQueue[_]].getDeclaredField("head"))
 
-  val TAIL_OFFSET = UNSAFE.objectFieldOffset(classOf[ConcurrentUnrolledQueue[_]].getDeclaredField("tail"))
+  private val TAIL_OFFSET = UNSAFE.objectFieldOffset(classOf[ConcurrentUnrolledQueue[_]].getDeclaredField("tail"))
+
+  private val DELETED = new AnyRef()
 
 }
 

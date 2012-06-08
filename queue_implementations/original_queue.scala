@@ -182,54 +182,10 @@ class ConcurrentUnrolledQueue[A] {
   }
 
 /*
-  def iterator() = {
-    new Iterator[A]() = {
-      var next: A = null
-      var current = head
-      var index = current.deleteHint
-
-      override def hasNext(): Boolean = {
-        if (next != null) {
-          return true
-        }
-
-        while (current != null) {
-          var v: A = null
-          while (index < Node.NODE_SIZE && {v = current.get(index); v == DELETED}) {
-            index += 1
-          }
-
-          if (index < Node.NODE_SIZE) {
-            if (current.deleteHint < index)
-              current.deleteHint = index
-
-            if (v == null) {
-              return false
-            }
-
-            next = v
-            return true
-          }
-
-          current = current.next.get
-          index = current.deleteHint
-        }
-
-        return false
-      }
-
-      override def next() = {
-        if (next != null) {
-          current = null
-          next
-        } else {
-          while (current != null) {
-
-          }
-    }
+  def iterator(): Iterator[A] = {
+    new CUQIterator()
   }
 */
-
 //  @scala.inline
   private def compareAndSwapHead(expect: Node, update: Node) = {
     UNSAFE.compareAndSwapObject(this, HEAD_OFFSET, expect, update)
@@ -329,6 +285,52 @@ class ConcurrentUnrolledQueue[A] {
 //    val ELEMENTS_INDEX_STEP = UNSAFE.arrayIndexScale(classOf[Array[Any]])
 
   }
+
+/*
+  class CUQIterator extends Iterator[A] {
+    private var nextElem: Any = null
+    private var current = head
+    private var index = current.deleteHint
+
+    override def hasNext(): Boolean = {
+      if (nextElem != null) {
+        return true
+      }
+
+      while (current != null) {
+        var v: Any = null
+        while (index < Node.NODE_SIZE && {v = current.get(index); v == DELETED}) {
+          index += 1
+        }
+
+        if (index < Node.NODE_SIZE) {
+          if (current.deleteHint < index)
+            current.deleteHint = index
+
+          if (v == null) {
+            return false
+          }
+
+          nextElem = v
+          return true
+        }
+
+        current = current.next.get
+        index = current.deleteHint
+      }
+
+      return false
+    }
+
+    override def next(): A = {
+      if (hasNext()) {
+        nextElem.asInstanceOf[A]
+      } else {
+        throw new NoSuchElementException("next on empty iterator")
+      }
+    }
+  }
+*/
 
 }
 

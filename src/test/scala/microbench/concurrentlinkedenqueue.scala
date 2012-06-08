@@ -27,8 +27,8 @@ class LinkedEnqueueThread(queue: ConcurrentLinkedQueue[AnyRef], nEnqueues: Int) 
 }
 
 object concurrentlinkedenqueue extends Benchmark {
-  val nThreads = sys.SystemProperties.help("bench.threads").toInt
-  val nElementsPerThread = sys.SystemProperties.help("bench.elements").toInt
+  val nThreads = sys.props("bench.threads").toInt
+  val nElementsPerThread = sys.props("bench.elements").toInt / nThreads
   var queue: ConcurrentLinkedQueue[AnyRef] = null
   var threads: List[java.lang.Thread] = null
 

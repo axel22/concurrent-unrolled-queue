@@ -21,7 +21,7 @@ class DequeueThread(queue: ConcurrentUnrolledQueue[AnyRef], nElements: Int) exte
 object concurrentdequeue extends Benchmark {
 
   val nThreads = sys.props("bench.threads").toInt
-  val nElementsPerThread = sys.props("bench.elements").toInt
+  val nElementsPerThread = sys.props("bench.elements").toInt / nThreads
   var queue: ConcurrentUnrolledQueue[AnyRef] = null
   var threads: List[java.lang.Thread] = null
 
@@ -30,12 +30,12 @@ object concurrentdequeue extends Benchmark {
 
     val obj = new AnyRef
     var i = 0
-    while (i < nElementsPerThread) {
+    while (i < nElementsPerThread * nThreads) {
       queue.enqueue(obj)
       i += 1
     }
 
-    threads = List.range(0, nElementsPerThread).map { _ => new DequeueThread(queue, nElementsPerThread) }
+    threads = List.range(0, nThreads).map { _ => new DequeueThread(queue, nElementsPerThread) }
   }
 
   override def run() = {

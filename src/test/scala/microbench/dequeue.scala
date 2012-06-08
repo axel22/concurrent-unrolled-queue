@@ -18,6 +18,7 @@ object dequeue extends Benchmark {
       queue.enqueue(obj)
       i += 1
     }
+    println("----------- start")
   }
 
   override def run() = {
@@ -29,6 +30,7 @@ object dequeue extends Benchmark {
   }
 
   override def tearDown() = {
+    println("----------- end")
     queue = null
   }
 

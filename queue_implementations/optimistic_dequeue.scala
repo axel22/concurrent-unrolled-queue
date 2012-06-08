@@ -56,7 +56,7 @@ class ConcurrentUnrolledQueue[A] {
     if (optHeadNext != null) {
       val optHint = optHeadNext.deleteHint
       val v = optHeadNext.get(optHint)
-      if (optHint < NODE_SIZE_MIN_ONE && v != null && v != DELETED) {
+      if (optHint < Node.NODE_SIZE_MIN_ONE && v != null && v != DELETED) {
         if (optHeadNext.compareAndSwapElem(optHint, v, DELETED))
           return v.asInstanceOf[A]
       }

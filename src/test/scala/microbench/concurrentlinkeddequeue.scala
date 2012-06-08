@@ -21,7 +21,7 @@ class LinkedDequeueThread(queue: ConcurrentLinkedQueue[AnyRef], nElements: Int) 
 object concurrentlinkeddequeue extends Benchmark {
 
   val nThreads = sys.props("bench.threads").toInt
-  val nElementsPerThread = sys.props("bench.elements").toInt
+  val nElementsPerThread = sys.props("bench.elements").toInt / nThreads
   var queue: ConcurrentLinkedQueue[AnyRef] = null
   var threads: List[java.lang.Thread] = null
 
@@ -30,12 +30,13 @@ object concurrentlinkeddequeue extends Benchmark {
 
     val obj = new AnyRef
     var i = 0
-    while (i < nElementsPerThread) {
+    while (i < nElementsPerThread * nThreads) {
       queue.offer(obj)
       i += 1
     }
 
-    threads = List.range(0, nElementsPerThread).map { _ => new LinkedDequeueThread(queue, nElementsPerThread) }
+    threads = List.range(0, nThreads).map { _ => new LinkedDequeueThread(queue, nElementsPerThread) }
+    println("--------- start")
   }
 
   override def run() = {
@@ -44,6 +45,7 @@ object concurrentlinkeddequeue extends Benchmark {
   }
 
   override def tearDown() = {
+    println("--------- end")
     queue = null
     threads = null
   }

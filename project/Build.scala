@@ -15,7 +15,7 @@ object CUQBuild extends Build {
     packageBin in Test
   ) map {
     (dp, jar, testjar, pbc, pbt) => // -XX:+UseConcMarkSweepGC -XX:-DoEscapeAnalysis -XX:MaxTenuringThreshold=12 -verbose:gc -XX:+PrintGCDetails 
-    val javacommand = "java -Xmx4096m -Xms4096m -XX:+UseCondCardMark -server -cp %s:%s:%s".format(
+    val javacommand = "java -Xmx4096m -Xms4096m -XX:+UseCondCardMark -server -verbose:gc -cp %s:%s:%s".format(
       dp.map(_.data).mkString(":"),
       jar,
       testjar

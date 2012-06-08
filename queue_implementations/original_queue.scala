@@ -228,7 +228,8 @@ class ConcurrentUnrolledQueue[A] {
 //    val elements = new Array[Any](NODE_SIZE)
     val elements = new AtomicReferenceArray[Any](NODE_SIZE)
 
-    @volatile
+    // @volatile
+    // var next: Node = null
     var next = new AtomicReference[Node](null)
 
     @volatile

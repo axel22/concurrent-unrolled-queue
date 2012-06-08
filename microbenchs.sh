@@ -1,8 +1,8 @@
 #!/bin/bash
 
-RUNS=40
-ELEMENTS_SINGLETHREAD=200
-ELEMENTS_MULTITHREAD=20000
+RUNS=20
+ELEMENTS_SINGLETHREAD=10000
+ELEMENTS_MULTITHREAD=10000
 
 if [ $# != 0 ]
 then
@@ -46,15 +46,15 @@ sbt()
 
 run_singlethread()
 {
-  print purple "    -> benchmarking with 1 thread, $ELEMENTS_SINGLETHREAD elements, running $RUNS times"
+  print purple "    -> benchmarking with 1 thread, $ELEMENTS elements, running $RUNS times"
   sbt "bench $ELEMENTS_SINGLETHREAD microbench.enqueue $RUNS"
 }
 
 run_multithread()
 {
-  for nthread in 2 4 8
+  for nthread in 2 3 4 5 6 7 8
   do
-    print purple "    -> benchmarking with $nthread threads, $ELEMENTS_MULTITHREAD / thread, running $RUNS times"
+    print purple "    -> benchmarking with $nthread threads, $ELEMENTS elements, running $RUNS times"
     sbt "bench $ELEMENTS_MULTITHREAD $nthread microbench.concurrentenqueue $RUNS"
   done
 }

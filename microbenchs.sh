@@ -1,14 +1,13 @@
 #!/bin/bash
 
 RUNS=20
-ELEMENTS_SINGLETHREAD=10000
-ELEMENTS_MULTITHREAD=10000
+ELEMENTS=20000000
 
 if [ $# != 0 ]
 then
   QUEUES=$@
 else
-  QUEUES=otherqueues/*.scala
+  QUEUES=queue_implementations/*.scala
 fi
 
 print()
@@ -44,26 +43,46 @@ sbt()
   $(which sbt) "$@" | grep -v info | expand --tabs=4
 }
 
-run_singlethread()
+bench_singlethread()
 {
-  print purple "    -> benchmarking with 1 thread, $ELEMENTS elements, running $RUNS times"
-  sbt "bench $ELEMENTS_SINGLETHREAD microbench.enqueue $RUNS"
+  print purple "    -> 1 thread, $ELEMENTS elements"
+  sbt "bench $ELEMENTS microbench.enqueue $RUNS"
+  sbt "bench $ELEMENTS microbench.dequeue $RUNS"
 }
 
-run_multithread()
+bench_multithread()
 {
-  for nthread in 2 3 4 5 6 7 8
+  for nthread in 2 4 8
   do
-    print purple "    -> benchmarking with $nthread threads, $ELEMENTS elements, running $RUNS times"
-    sbt "bench $ELEMENTS_MULTITHREAD $nthread microbench.concurrentenqueue $RUNS"
+    print purple "    -> $nthread threads, $ELEMENTS elements"
+    sbt "bench $ELEMENTS $nthread microbench.concurrentenqueue $RUNS"
   done
 }
+
+bench_reference_singlethread()
+{
+  print purple "    -> 1 thread, $ELEMENTS elements"
+  sbt "bench $ELEMENTS microbench.linkedenqueue $RUNS"
+  sbt "bench $ELEMENTS microbench.linkeddequeue $RUNS"
+}
+
+bench_reference_multithread()
+{
+  for nthread in 2 4 8
+  do
+    print purple "    -> $nthread threads, $ELEMENTS elements"
+    sbt "bench $ELEMENTS $nthread microbench.concurrentlinkedenqueue $RUNS"
+  done
+}
+
+print red "benchmarking reference ConcurrentLinkedQueue implementation"
+bench_reference_singlethread
+bench_reference_multithread
 
 for queue in $QUEUES
 do
   print red "benchmarking $queue"
   set_queue_implementation "$queue"
-  run_singlethread "$queue"
-  run_multithread "$queue"
+  bench_singlethread "$queue"
+  bench_multithread "$queue"
 done
-

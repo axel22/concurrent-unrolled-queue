@@ -39,12 +39,7 @@ class ConcurrentAddSpec extends FlatSpec {
   val ELEMENTS_PER_THREAD = 200000
 
   def queue2Set[A](queue: ConcurrentUnrolledQueue[A]) = {
-    val retrievedSet = new collection.mutable.HashSet[A]()
-    while (!queue.isEmpty()) {
-      retrievedSet += queue.dequeue()
-    }
-
-    retrievedSet
+    queue.iterator.toSet
   }
 
 }

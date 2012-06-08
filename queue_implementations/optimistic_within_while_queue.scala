@@ -68,8 +68,14 @@ class ConcurrentUnrolledQueue[A] {
 
       if (h == t) {
         if (nh == null) {
-          return null.asInstanceOf[A]
+          throw new NoSuchElementException("first element of empty queue")
         }
+
+        /* If no thread is adding elements, and there are threads removing, tail
+         * will fall behind head. Therefore, we first need to advance tail before
+         * actually removing an element, because we might have to remove the entire
+         * node.
+         */
         compareAndSwapTail(t, nh) // Tail is falling behind.  Try to advance it
       } else {
         var i = nh.deleteHint
@@ -80,18 +86,18 @@ class ConcurrentUnrolledQueue[A] {
         }
 
         if (v == null) {
-          /* this needs some more thinking. And an assert that would look like assert(nh == t,...) but it would'nt be thread safe */
-          return null.asInstanceOf[A]
+          throw new NoSuchElementException("first element of empty queue")
         }
 
         if (i < Node.NODE_SIZE_MIN_ONE) {
           if (nh.compareAndSwapElem(i, v, DELETED)) {
-            nh.deleteHint = i
+            if (nh.deleteHint <= i) {
+              nh.deleteHint = i + 1
+            }
+
             return v.asInstanceOf[A]
           }
         } else if (i == Node.NODE_SIZE_MIN_ONE) { // if the element being removed is the last element of the node...
-          /* This needs some more careful thinking. */
-          /* 23.05.2012, pretty sure about this one now */
           if (compareAndSwapHead(h, nh)) {
             nh.set(Node.NODE_SIZE_MIN_ONE, DELETED)
             return v.asInstanceOf[A]
@@ -102,7 +108,7 @@ class ConcurrentUnrolledQueue[A] {
       }
     }
 
-    return null.asInstanceOf[A] // should never happen, maybe throw an exception instead ?
+    throw new Error("reached unreachable point") // should never happen, maybe throw an exception instead ?
   }
 
   def peek(): A = {
@@ -113,8 +119,9 @@ class ConcurrentUnrolledQueue[A] {
 
       if (h == t) {
         if (nh == null) {
-          return null.asInstanceOf[A]
+          throw new NoSuchElementException("first element of empty queue")
         }
+
         compareAndSwapTail(t, nh) // Tail is falling behind.  Try to advance it
       } else {
         var i = nh.deleteHint
@@ -124,9 +131,8 @@ class ConcurrentUnrolledQueue[A] {
           i += 1
         }
 
-        /* it would be nice to advance deleteHint */
-
         if (i < Node.NODE_SIZE) {
+          nh.deleteHint = i
           return v.asInstanceOf[A]
         } else {
           /* node has been deleted. */
@@ -134,7 +140,7 @@ class ConcurrentUnrolledQueue[A] {
       }
     }
 
-    return null.asInstanceOf[A]
+    throw new Error("reached unreachable point")
   }
 
   /* a simple size implementation. not very useful in a concurrent context */
@@ -142,17 +148,50 @@ class ConcurrentUnrolledQueue[A] {
     var count = 0
     var current = head
     while ({ current = current.next.get; current != null }) {
-      var i = current.deleteHint
-      while (i < Node.NODE_SIZE) {
-        val elem = current.get(i)
-        if (elem == null) {
-          return count
-        } else if (elem != DELETED) {
-          count += 1
+      val first = current.get(0)
+      val last = current.get(Node.NODE_SIZE_MIN_ONE)
+      if (first != null && first != DELETED && last != null && last != DELETED) {
+        count += Node.NODE_SIZE
+      } else {
+        var i = current.deleteHint
+        while (i < Node.NODE_SIZE) {
+          val elem = current.get(i)
+          if (elem == null) {
+            return count
+          } else if (elem != DELETED) {
+            count += 1
+          }
+          i += 1
         }
       }
     }
     count
+  }
+
+  def isEmpty(): Boolean = {
+    var current = head
+
+    while ({ current = current.next.get; current != null }) {
+      var i = current.deleteHint
+
+      while (i < Node.NODE_SIZE) {
+        val elem = current.get(i)
+
+        if (elem == null) {
+          return true;
+        } else if (elem != DELETED) {
+          return false
+        }
+
+        i += 1
+      }
+    }
+
+    return true
+  }
+
+  def iterator(): Iterator[A] = {
+    new CUQIterator(head)
   }
 
 //  @scala.inline
@@ -165,8 +204,6 @@ class ConcurrentUnrolledQueue[A] {
     UNSAFE.compareAndSwapObject(this, TAIL_OFFSET, expect, update)
 //    tail.compareAndSet(expect, update)
   }
-
-  private val DELETED = new AnyRef()
 
   @volatile
   private var head = new Node()
@@ -181,6 +218,10 @@ class ConcurrentUnrolledQueue[A] {
       i += 1
     }
   }
+
+}
+
+object ConcurrentUnrolledQueue {
 
   final class Node () {
     import Node._
@@ -218,20 +259,11 @@ class ConcurrentUnrolledQueue[A] {
       elements.get(i)
     }
 
-//    def mkString(): String = {
-//      var i = 0
-//      var s = ""
-//      while (i < atomicElements.length()) {
-//        s += atomicElements.get(i)
-//        i += 1
-//      }
-//      return s
-//    }
-
 //    val elements = new Array[Any](NODE_SIZE)
     val elements = new AtomicReferenceArray[Any](NODE_SIZE)
 
-    @volatile
+//    @volatile
+//    var next = null
     var next = new AtomicReference[Node](null)
 
     @volatile
@@ -243,7 +275,7 @@ class ConcurrentUnrolledQueue[A] {
 
   object Node {
 
-    val NODE_SIZE = 1 << 12
+    val NODE_SIZE = 1 << 11
 
     val NODE_SIZE_MIN_ONE = NODE_SIZE - 1
 
@@ -255,11 +287,51 @@ class ConcurrentUnrolledQueue[A] {
 
   }
 
-}
+  final class CUQIterator[A](private var current: Node) extends Iterator[A] {
+    private var nextElem: Any = null
+    private var index = current.deleteHint
 
-object ConcurrentUnrolledQueue {
+    override def hasNext(): Boolean = {
+      if (nextElem != null) {
+        return true
+      }
 
-  val UNSAFE = {
+      while (current != null) {
+        var v: Any = null
+        while (index < Node.NODE_SIZE && { v = current.get(index); v == DELETED }) {
+          index += 1
+        }
+
+        if (index < Node.NODE_SIZE) {
+          if (v == null) {
+            current.addHint = index
+            return false
+          }
+
+          nextElem = v
+          index += 1 // we would'nt want to give the same element back, wouldn't we ?
+          return true
+        }
+
+        current = current.next.get
+        index = current.deleteHint
+      }
+
+      return false
+    }
+
+    override def next(): A = {
+      if (hasNext()) {
+        val ret = nextElem
+        nextElem = null
+        return ret.asInstanceOf[A]
+      } else {
+        throw new NoSuchElementException("next on empty iterator")
+      }
+    }
+  }
+
+  private val UNSAFE = {
     if (this.getClass.getClassLoader == null)
       sun.misc.Unsafe.getUnsafe()
     else
@@ -272,9 +344,11 @@ object ConcurrentUnrolledQueue {
       }
   }
 
-  val HEAD_OFFSET = UNSAFE.objectFieldOffset(classOf[ConcurrentUnrolledQueue[_]].getDeclaredField("head"))
+  private val HEAD_OFFSET = UNSAFE.objectFieldOffset(classOf[ConcurrentUnrolledQueue[_]].getDeclaredField("head"))
 
-  val TAIL_OFFSET = UNSAFE.objectFieldOffset(classOf[ConcurrentUnrolledQueue[_]].getDeclaredField("tail"))
+  private val TAIL_OFFSET = UNSAFE.objectFieldOffset(classOf[ConcurrentUnrolledQueue[_]].getDeclaredField("tail"))
+
+  private val DELETED = new AnyRef()
 
 }
 

@@ -1,19 +1,8 @@
-/* enqueue, 1 thread, 40'000'000 elements :
- * 645 615 557 556 557 557 557 557 557 558 557 558 557 557 557 557 557 557 558 558 557 556 557 557 557 558 557 557 557 557 558 558 557 558 558 557 557 558 558 558
- *
- * enqueue, 4 threads, 4'000'000 elements / thread
- * 1391 1326 1261 1282 1293 1290 1247 1236 1244 1245 1246 1245 1243 1233 1237 1243 1245 1246 1247 1245 1247 1241 1244 1239 1249 1239 1239 1241 1247 1243 1246 1249 1241 1246 1247 1243 1245 1245 1247 1245
- *
- * enqueue, 8 threads, 4'000'000 elements / thread
- * 3172 3154 3177 3190 3193 3116 3200 3150 3129 3179 3188 3191 3151 3152 2899 3188 3188 3183 3142 3184 3140 3145 3178 3186 2882 3177 3191 2897 3186 3180 3192 3179 3185 3180 3184 3191 3190 3184 2895 3179
- */
-
 package scala.concurrent
 
 import java.util.concurrent.atomic._
 
 class ConcurrentUnrolledQueue[A] {
-//  override def companion: scala.collection.generic.GenericCompanion[ConcurrentUnrolledQueue] = ConcurrentUnrolledQueue
 
   import ConcurrentUnrolledQueue._
 
@@ -52,18 +41,6 @@ class ConcurrentUnrolledQueue[A] {
   }
 
   def dequeue(): A = {
-    val optHeadNext = head.next.get
-    if (optHeadNext != null) {
-      val optHint = optHeadNext.deleteHint
-      val v = optHeadNext.get(optHint)
-      if (optHint < Node.NODE_SIZE_MIN_ONE && v != null && v != DELETED) {
-        if (optHeadNext.compareAndSwapElem(optHint, v, DELETED)) {
-          optHeadNext.deleteHint = optHint + 1
-          return v.asInstanceOf[A]
-        }
-      }
-    }
-
     while (true) {
       val h = head
       val nh = h.next.get
@@ -71,8 +48,14 @@ class ConcurrentUnrolledQueue[A] {
 
       if (h == t) {
         if (nh == null) {
-          return null.asInstanceOf[A]
+          throw new NoSuchElementException("first element of empty queue")
         }
+
+        /* If no thread is adding elements, and there are threads removing, tail
+         * will fall behind head. Therefore, we first need to advance tail before
+         * actually removing an element, because we might have to remove the entire
+         * node.
+         */
         compareAndSwapTail(t, nh) // Tail is falling behind.  Try to advance it
       } else {
         var i = nh.deleteHint
@@ -83,7 +66,7 @@ class ConcurrentUnrolledQueue[A] {
         }
 
         if (v == null) {
-          return null.asInstanceOf[A]
+          throw new NoSuchElementException("first element of empty queue")
         }
 
         if (i < Node.NODE_SIZE_MIN_ONE) {
@@ -97,7 +80,6 @@ class ConcurrentUnrolledQueue[A] {
         } else if (i == Node.NODE_SIZE_MIN_ONE) { // if the element being removed is the last element of the node...
           if (compareAndSwapHead(h, nh)) {
             nh.set(Node.NODE_SIZE_MIN_ONE, DELETED)
-            //nh.next.lazySet(head)
             return v.asInstanceOf[A]
           }
         } else { // if (i == Node.NODE_SIZE)
@@ -106,7 +88,7 @@ class ConcurrentUnrolledQueue[A] {
       }
     }
 
-    return null.asInstanceOf[A] // should never happen, maybe throw an exception instead ?
+    throw new Error("reached unreachable point") // should never happen, maybe throw an exception instead ?
   }
 
   def peek(): A = {
@@ -117,8 +99,9 @@ class ConcurrentUnrolledQueue[A] {
 
       if (h == t) {
         if (nh == null) {
-          return null.asInstanceOf[A]
+          throw new NoSuchElementException("first element of empty queue")
         }
+
         compareAndSwapTail(t, nh) // Tail is falling behind.  Try to advance it
       } else {
         var i = nh.deleteHint
@@ -128,9 +111,8 @@ class ConcurrentUnrolledQueue[A] {
           i += 1
         }
 
-        /* it would be nice to advance deleteHint */
-
         if (i < Node.NODE_SIZE) {
+          nh.deleteHint = i
           return v.asInstanceOf[A]
         } else {
           /* node has been deleted. */
@@ -138,7 +120,7 @@ class ConcurrentUnrolledQueue[A] {
       }
     }
 
-    return null.asInstanceOf[A]
+    throw new Error("reached unreachable point")
   }
 
   /* a simple size implementation. not very useful in a concurrent context */
@@ -146,17 +128,50 @@ class ConcurrentUnrolledQueue[A] {
     var count = 0
     var current = head
     while ({ current = current.next.get; current != null }) {
-      var i = current.deleteHint
-      while (i < Node.NODE_SIZE) {
-        val elem = current.get(i)
-        if (elem == null) {
-          return count
-        } else if (elem != DELETED) {
-          count += 1
+      val first = current.get(0)
+      val last = current.get(Node.NODE_SIZE_MIN_ONE)
+      if (first != null && first != DELETED && last != null && last != DELETED) {
+        count += Node.NODE_SIZE
+      } else {
+        var i = current.deleteHint
+        while (i < Node.NODE_SIZE) {
+          val elem = current.get(i)
+          if (elem == null) {
+            return count
+          } else if (elem != DELETED) {
+            count += 1
+          }
+          i += 1
         }
       }
     }
     count
+  }
+
+  def isEmpty(): Boolean = {
+    var current = head
+
+    while ({ current = current.next.get; current != null }) {
+      var i = current.deleteHint
+
+      while (i < Node.NODE_SIZE) {
+        val elem = current.get(i)
+
+        if (elem == null) {
+          return true;
+        } else if (elem != DELETED) {
+          return false
+        }
+
+        i += 1
+      }
+    }
+
+    return true
+  }
+
+  def iterator(): Iterator[A] = {
+    new CUQIterator(head)
   }
 
 //  @scala.inline
@@ -169,8 +184,6 @@ class ConcurrentUnrolledQueue[A] {
     UNSAFE.compareAndSwapObject(this, TAIL_OFFSET, expect, update)
 //    tail.compareAndSet(expect, update)
   }
-
-  private val DELETED = new AnyRef()
 
   @volatile
   private var head = new Node()
@@ -185,6 +198,10 @@ class ConcurrentUnrolledQueue[A] {
       i += 1
     }
   }
+
+}
+
+object ConcurrentUnrolledQueue {
 
   final class Node () {
     import Node._
@@ -222,20 +239,11 @@ class ConcurrentUnrolledQueue[A] {
       elements.get(i)
     }
 
-//    def mkString(): String = {
-//      var i = 0
-//      var s = ""
-//      while (i < atomicElements.length()) {
-//        s += atomicElements.get(i)
-//        i += 1
-//      }
-//      return s
-//    }
-
 //    val elements = new Array[Any](NODE_SIZE)
     val elements = new AtomicReferenceArray[Any](NODE_SIZE)
 
 //    @volatile
+//    var next = null
     var next = new AtomicReference[Node](null)
 
     @volatile
@@ -259,11 +267,51 @@ class ConcurrentUnrolledQueue[A] {
 
   }
 
-}
+  final class CUQIterator[A](private var current: Node) extends Iterator[A] {
+    private var nextElem: Any = null
+    private var index = current.deleteHint
 
-object ConcurrentUnrolledQueue {
+    override def hasNext(): Boolean = {
+      if (nextElem != null) {
+        return true
+      }
 
-  val UNSAFE = {
+      while (current != null) {
+        var v: Any = null
+        while (index < Node.NODE_SIZE && { v = current.get(index); v == DELETED }) {
+          index += 1
+        }
+
+        if (index < Node.NODE_SIZE) {
+          if (v == null) {
+            current.addHint = index
+            return false
+          }
+
+          nextElem = v
+          index += 1 // we would'nt want to give the same element back, wouldn't we ?
+          return true
+        }
+
+        current = current.next.get
+        index = current.deleteHint
+      }
+
+      return false
+    }
+
+    override def next(): A = {
+      if (hasNext()) {
+        val ret = nextElem
+        nextElem = null
+        return ret.asInstanceOf[A]
+      } else {
+        throw new NoSuchElementException("next on empty iterator")
+      }
+    }
+  }
+
+  private val UNSAFE = {
     if (this.getClass.getClassLoader == null)
       sun.misc.Unsafe.getUnsafe()
     else
@@ -276,9 +324,11 @@ object ConcurrentUnrolledQueue {
       }
   }
 
-  val HEAD_OFFSET = UNSAFE.objectFieldOffset(classOf[ConcurrentUnrolledQueue[_]].getDeclaredField("head"))
+  private val HEAD_OFFSET = UNSAFE.objectFieldOffset(classOf[ConcurrentUnrolledQueue[_]].getDeclaredField("head"))
 
-  val TAIL_OFFSET = UNSAFE.objectFieldOffset(classOf[ConcurrentUnrolledQueue[_]].getDeclaredField("tail"))
+  private val TAIL_OFFSET = UNSAFE.objectFieldOffset(classOf[ConcurrentUnrolledQueue[_]].getDeclaredField("tail"))
+
+  private val DELETED = new AnyRef()
 
 }
 

@@ -3,5 +3,4 @@ bin
 .classpath
 .project
 .settings
-/project
-/target
+target/

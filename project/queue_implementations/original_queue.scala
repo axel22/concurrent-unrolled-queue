@@ -72,9 +72,7 @@ class ConcurrentUnrolledQueue[A] {
 
         if (i < Node.NODE_SIZE_MIN_ONE) {
           if (nh.compareAndSwapElem(i, v, DELETED)) {
-            if (nh.deleteHint <= i) {
-              nh.deleteHint = i + 1
-            }
+            nh.deleteHint = i + 1
 
             return v.asInstanceOf[A]
           }

@@ -3,13 +3,13 @@ package microbench
 import scala.testing.Benchmark
 import concurrent.ConcurrentUnrolledQueue
 
-class DequeueThread(queue: ConcurrentUnrolledQueue[AnyRef], nElements: Int) extends java.lang.Thread {
+class DequeueThread(queue: ConcurrentUnrolledQueue[AnyRef], nElements: Int) extends Thread {
 
   override def run(): Unit = {
     val queue = this.queue
     val nElements = this.nElements
-    var i = 0
 
+    var i = 0
     while (i < nElements) {
       queue.dequeue()
       i += 1
@@ -21,21 +21,21 @@ class DequeueThread(queue: ConcurrentUnrolledQueue[AnyRef], nElements: Int) exte
 object concurrentdequeue extends Benchmark {
 
   val nThreads = sys.props("bench.threads").toInt
-  val nElementsPerThread = sys.props("bench.elements").toInt / nThreads
+  val totalElements = sys.props("bench.elements").toInt
+
   var queue: ConcurrentUnrolledQueue[AnyRef] = null
-  var threads: List[java.lang.Thread] = null
+  var threads: IndexedSeq[Thread] = null
 
   override def setUp() = {
     queue = new ConcurrentUnrolledQueue[AnyRef]
 
     val obj = new AnyRef
-    var i = 0
-    while (i < nElementsPerThread * nThreads) {
+    for (i <- 0 until totalElements) {
       queue.enqueue(obj)
-      i += 1
     }
 
-    threads = List.range(0, nThreads).map { _ => new DequeueThread(queue, nElementsPerThread) }
+    threads = for (threadid <- 0 until nThreads)
+        yield new DequeueThread(queue, totalElements / nThreads)
   }
 
   override def run() = {

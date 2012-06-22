@@ -3,13 +3,13 @@ package microbench
 import java.util.concurrent.ConcurrentLinkedQueue
 import scala.testing.Benchmark
 
-class LinkedDequeueThread(queue: ConcurrentLinkedQueue[AnyRef], nElements: Int) extends java.lang.Thread {
+class LinkedDequeueThread(queue: ConcurrentLinkedQueue[AnyRef], nElements: Int) extends Thread {
 
   override def run(): Unit = {
     val queue = this.queue
     val nElements = this.nElements
-    var i = 0
 
+    var i = 0
     while (i < nElements) {
       queue.poll()
       i += 1
@@ -21,22 +21,21 @@ class LinkedDequeueThread(queue: ConcurrentLinkedQueue[AnyRef], nElements: Int) 
 object concurrentlinkeddequeue extends Benchmark {
 
   val nThreads = sys.props("bench.threads").toInt
-  val nElementsPerThread = sys.props("bench.elements").toInt / nThreads
+  val totalElements = sys.props("bench.elements").toInt
+
   var queue: ConcurrentLinkedQueue[AnyRef] = null
-  var threads: List[java.lang.Thread] = null
+  var threads: IndexedSeq[Thread] = null
 
   override def setUp() = {
     queue = new ConcurrentLinkedQueue[AnyRef]
 
     val obj = new AnyRef
-    var i = 0
-    while (i < nElementsPerThread * nThreads) {
+    for (i <- 0 until totalElements) {
       queue.offer(obj)
-      i += 1
     }
 
-    threads = List.range(0, nThreads).map { _ => new LinkedDequeueThread(queue, nElementsPerThread) }
-    println("--------- start")
+    threads = for (threadid <- 0 until nThreads)
+        yield new LinkedDequeueThread(queue, totalElements / nThreads)
   }
 
   override def run() = {
@@ -45,7 +44,6 @@ object concurrentlinkeddequeue extends Benchmark {
   }
 
   override def tearDown() = {
-    println("--------- end")
     queue = null
     threads = null
   }

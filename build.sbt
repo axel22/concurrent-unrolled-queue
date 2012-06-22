@@ -8,3 +8,5 @@ scalaVersion := "2.9.2"
 
 scalacOptions ++= Seq("-deprecation", "-optimise")
 
+libraryDependencies += "org.scalatest" %% "scalatest" % "1.8" % "test"
+
